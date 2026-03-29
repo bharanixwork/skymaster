@@ -1,0 +1,8 @@
+{
+  "name": "skymaster",
+  "framework": "vite",
+  "alias": "skymaster.vercel.app",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
