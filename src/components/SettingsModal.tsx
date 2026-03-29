@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Settings as SettingsIcon, X, Bot, Volume2, Palette, Brain, Headphones, Sliders, Check, ChevronRight, Eye, Monitor, Type } from 'lucide-react';
+import { Settings as SettingsIcon, X, Bot, Volume2, Palette, Brain, Headphones, Sliders, Check, ChevronRight, Eye, Monitor, Type, Cloud, RefreshCw, Key, Copy } from 'lucide-react';
 import { CoachIrisIcon } from './CoachIrisIcon';
 
 export interface Settings {
@@ -8,9 +8,8 @@ export interface Settings {
   voiceEnabled: boolean;
   coachVolume: number;
   coachRate: number;
-  coachPitch: number;
-  autoPlayVoice: boolean;
   coachPersonality: 'enthusiastic' | 'academic' | 'professional';
+  theme: 'dark' | 'light';
   uiDensity: 'compact' | 'relaxed';
   fontSize: 'medium' | 'large' | 'small';
   motionIntensity: 'low' | 'high';
@@ -26,9 +25,19 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: Settings;
   onUpdateSettings: (settings: Settings) => void;
+  syncCode?: string;
+  onLoadSyncCode: (code: string) => void;
 }
 
-export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: SettingsModalProps) => {
+export const SettingsModal = ({ 
+  isOpen, 
+  onClose, 
+  settings, 
+  onUpdateSettings,
+  syncCode = "NOT-GENERATED",
+  onLoadSyncCode
+}: SettingsModalProps) => {
+  const [copied, setCopied] = React.useState(false);
   if (!isOpen) return null;
 
   const update = (key: keyof Settings, value: any) => {
@@ -63,42 +72,15 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
           
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-8 space-y-10">
-            {/* Visual Experience */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-2 text-accent">
-                <Type className="w-4 h-4" />
-                <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Text Size</h4>
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                {['Small', 'Medium', 'Large'].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => update('fontSize', s.toLowerCase())}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
-                      settings.fontSize === s.toLowerCase()
-                      ? 'bg-accent/10 border-accent text-accent'
-                      : 'bg-background-primary border-border-dim text-text-secondary hover:border-text-secondary'
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold uppercase">{s}</span>
-                    {settings.fontSize === s.toLowerCase() && <Check className="w-4 h-4" />}
-                  </button>
-                ))}
-              </div>
-            </section>
-
             {/* Coach Iris */}
             <section className="space-y-6">
               <div className="flex items-center gap-2 text-accent">
                 <CoachIrisIcon className="w-4 h-4" />
-                <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Mentor Control</h4>
+                <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Speech Assistant</h4>
               </div>
-              
               <div className="space-y-4">
-                <MinimalToggle label="Enable Coach Iris" desc="AI guidance during lessons" value={settings.showCoachIris} onChange={(v) => { update('showCoachIris', v); if(!v) update('voiceEnabled', false); }} />
-                {settings.showCoachIris && (
-                   <MinimalToggle label="Voice Narration" desc="Automatically read content" value={settings.voiceEnabled} onChange={(v) => update('voiceEnabled', v)} />
-                )}
+                <MinimalToggle label="Enable Iris Presence" desc="Visible assistant for narration" value={settings.showCoachIris} onChange={(v) => { update('showCoachIris', v); if(!v) update('voiceEnabled', false); }} />
+                <MinimalToggle label="Selection Reading" desc="Allow Iris to read highlighted text" value={settings.voiceEnabled} onChange={(v) => update('voiceEnabled', v)} />
               </div>
             </section>
 
@@ -108,11 +90,9 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
                 <Headphones className="w-4 h-4" />
                 <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Atmosphere</h4>
               </div>
-              
               <div className="space-y-4">
                 <MinimalToggle label="Interface Sounds" value={settings.soundFX} onChange={(v) => update('soundFX', v)} />
-                <MinimalToggle label="Background Ambiance" desc="Drone hum & atmospheric low-end" value={settings.backgroundAmbiance} onChange={(v) => update('backgroundAmbiance', v)} />
-                
+                <MinimalToggle label="Environmental Focus" desc="Subtle atmospheric soundscape for deep study" value={settings.backgroundAmbiance} onChange={(v) => update('backgroundAmbiance', v)} />
                 <div className="pt-2">
                   <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-2">
                     <span>Master Volume</span>
@@ -135,10 +115,60 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
                 <Monitor className="w-4 h-4" />
                 <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Study Mode</h4>
               </div>
-              
               <div className="space-y-4">
                 <MinimalToggle label="Focus Mode" desc="Remove all UI during deep study" value={settings.focusMode} onChange={(v) => update('focusMode', v)} />
                 <MinimalToggle label="Professional Math" desc="Enable high-fidelity KaTeX engine" value={settings.mathDisplay === 'katex'} onChange={(v) => update('mathDisplay', v ? 'katex' : 'plain')} />
+              </div>
+            </section>
+
+            {/* Cloud Sync */}
+            <section className="space-y-6 pt-6 border-t border-border-dim">
+              <div className="flex items-center gap-2 text-accent">
+                <Cloud className="w-4 h-4" />
+                <h4 className="text-xs font-bold uppercase tracking-[0.2em]">Cloud Continuity</h4>
+              </div>
+              <div className="space-y-6">
+                 <div className="bg-background-primary/50 p-4 rounded-2xl border border-border-dim space-y-3">
+                    <div className="flex items-center justify-between">
+                       <h5 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Your Mission Code</h5>
+                       <span className="flex items-center gap-1 text-[8px] font-mono text-green-500 uppercase">
+                          <RefreshCw className="w-2 h-2" /> Live
+                       </span>
+                    </div>
+                    <div 
+                       onClick={() => {
+                          navigator.clipboard.writeText(syncCode);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                       }}
+                       className="group/code relative font-mono text-xs p-3 bg-background-secondary rounded-lg border border-border-dim text-accent select-all text-center break-all shadow-inner cursor-pointer hover:border-accent/50 transition-all active:scale-[0.98]"
+                    >
+                       {syncCode}
+                       <div className={`absolute inset-0 bg-background-secondary/90 flex items-center justify-center rounded-lg transition-opacity ${copied ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                          <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest flex items-center gap-2">
+                             <Check className="w-3 h-3" /> Copied to Clipboard
+                          </span>
+                       </div>
+                       <Copy className="absolute top-1 right-1 w-3 h-3 text-text-secondary opacity-0 group-hover/code:opacity-40 transition-opacity" />
+                    </div>
+                 </div>
+                 <div className="space-y-3">
+                    <h5 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary px-1">Import Progress</h5>
+                    <div className="relative group">
+                       <input 
+                          type="text" 
+                          placeholder="PASTE MISSION CODE..."
+                          className="w-full bg-background-primary border border-border-dim rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:border-accent transition-all pl-10"
+                          onKeyDown={(e) => {
+                             if (e.key === 'Enter') {
+                                onLoadSyncCode((e.target as HTMLInputElement).value);
+                                (e.target as HTMLInputElement).value = '';
+                             }
+                          }}
+                       />
+                       <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary group-focus-within:text-accent transition-colors" />
+                    </div>
+                 </div>
               </div>
             </section>
           </div>

@@ -42,6 +42,7 @@ import { FlashcardsModal } from './components/FlashcardsModal';
 import { exportNotesAsMarkdown } from './utils/noteExporter';
 import { audioSystem } from './utils/audioSystem';
 import { CoachIrisIcon } from './components/CoachIrisIcon';
+import { syncService } from './utils/syncService';
 
 // --- Components ---
 
@@ -407,7 +408,7 @@ const Quiz = ({
   );
 };
 
-export default function App() {
+export function App() {
   const [progress, setProgress] = useState<{
     completedSubChapters: string[];
     currentChapterId: string;
@@ -470,16 +471,48 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [quizMode, setQuizMode] = useState<'normal' | 'final'>('normal');
+
+  const syncCode = useMemo(() => {
+    return syncService.generateSyncCode(progress, studyList);
+  }, [progress, studyList]);
+
+  const handleLoadSyncCode = (code: string) => {
+    try {
+      const cleanCode = code.replace(/^SKM-/, '').replace(/-/g, '').trim();
+      if (!cleanCode) return;
+      
+      // For this build, we support a simple base64 recovery
+      const json = decodeURIComponent(atob(cleanCode));
+      const data = JSON.parse(json);
+      
+      if (data.p === 'skymaster-v1') {
+        setProgress({
+          completedSubChapters: data.completedSubChapters || [],
+          currentChapterId: data.currentChapterId || curriculum[0].id,
+          currentSubChapterId: data.currentSubChapterId || curriculum[0].subChapters[0].id,
+          bookmarks: data.bookmarks || [],
+          xp: data.xp || 0,
+          notes: data.notes || {},
+          streak: data.streak || 0,
+          lastActiveDate: data.lastActiveDate || null
+        });
+        if (data.sl) setStudyList(data.sl);
+        setCoachMessage({ message: "MISSION UPDATED: Progress synchronized successfully.", type: 'success' });
+      }
+    } catch (e) {
+      setCoachMessage({ message: "SYNC ERROR: Invalid or corrupted mission code.", type: 'error' });
+    }
+  };
   
   const [settings, setSettings] = useState<any>(() => {
     const saved = localStorage.getItem('drone-tech-settings');
     const defaultSettings = { 
-      showCoachIris: true, 
-      voiceEnabled: true,
+      showCoachIris: false, 
+      voiceEnabled: false,
       coachVolume: 1,
       coachRate: 1,
-      coachPitch: 1.1,
-      autoPlayVoice: true,
+      coachPitch: 1.2,
+      autoPlayVoice: false,
       coachPersonality: 'professional',
       theme: 'light',
       uiDensity: 'relaxed',
@@ -536,12 +569,15 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('drone-tech-study-list', JSON.stringify(studyList));
-  }, [studyList]);
+    // Trigger Cloud Projection
+    syncService.syncToCloud(progress, studyList);
+  }, [studyList, progress]);
 
   // Apply Live Settings to DOM
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-theme', 'light');
+    root.classList.remove('dark');
     
     // Manage Audio
     if (settings.backgroundAmbiance) {
@@ -826,6 +862,8 @@ export default function App() {
             setSettings(newSettings);
             localStorage.setItem('drone-tech-settings', JSON.stringify(newSettings));
           }}
+          syncCode={syncCode}
+          onLoadSyncCode={handleLoadSyncCode}
         />
       </div>
     );
@@ -1087,65 +1125,31 @@ export default function App() {
                   className="prose prose-headings:text-text-primary prose-p:text-text-primary/90 max-w-none"
                 >
                   <div className="text-text-primary leading-relaxed text-lg space-y-6">
-                    {settings.showCoachIris ? (
-                      <InteractiveLesson 
-                        content={currentSubChapter.content}
-                        voiceEnabled={settings.voiceEnabled}
-                        coachSettings={{
-                          volume: settings.coachVolume,
-                          rate: settings.coachRate,
-                          pitch: settings.coachPitch,
-                          personality: settings.coachPersonality
-                        }}
-                        components={{
-                          p: ({ children }: any) => (
-                            <ContentRenderer 
-                              onAddToStudyList={handleAddToStudyList}
-                              studyList={studyList}
-                            >
-                              {children}
-                            </ContentRenderer>
-                          ),
-                          li: ({ children }: any) => (
-                            <li>
-                              <ContentRenderer 
-                                onAddToStudyList={handleAddToStudyList}
-                                studyList={studyList}
-                              >
-                                {children}
-                              </ContentRenderer>
-                            </li>
-                          )
-                        }}
-                        onComplete={() => {}}
-                      />
-                    ) : (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
+                    <InteractiveLesson 
+                      content={currentSubChapter.content}
+                      showIris={settings.showCoachIris}
+                      voiceEnabled={settings.voiceEnabled}
+                      coachSettings={{
+                        volume: settings.coachVolume,
+                        rate: settings.coachRate,
+                        pitch: settings.coachPitch,
+                        personality: settings.coachPersonality
+                      }}
+                      components={{
                         p: ({ children }: any) => (
-                          <ContentRenderer 
-                            onAddToStudyList={handleAddToStudyList}
-                            studyList={studyList}
-                          >
-                            {children}
-                          </ContentRenderer>
+                          <ContentRenderer onAddToStudyList={handleAddToStudyList} studyList={studyList}>{children}</ContentRenderer>
                         ),
                         li: ({ children }: any) => (
-                          <li>
-                            <ContentRenderer 
-                              onAddToStudyList={handleAddToStudyList}
-                              studyList={studyList}
-                            >
-                              {children}
-                            </ContentRenderer>
-                          </li>
+                          <li><ContentRenderer onAddToStudyList={handleAddToStudyList} studyList={studyList}>{children}</ContentRenderer></li>
                         )
-                      }}>
-                        {currentSubChapter.content}
-                      </ReactMarkdown>
-                    )}
+                      }}
+                      onComplete={() => {
+                        if (settings.soundFX) audioSystem.playClick();
+                        setQuizMode('normal');
+                        setShowQuiz(true);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
                   </div>
                 </motion.article>
 
@@ -1273,6 +1277,8 @@ export default function App() {
         onClose={() => setShowSettings(false)} 
         settings={settings} 
         onUpdateSettings={setSettings} 
+        syncCode={syncCode}
+        onLoadSyncCode={handleLoadSyncCode}
       />
 
       <PlayerDashboard 

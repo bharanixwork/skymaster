@@ -17,13 +17,14 @@
 @layer base {
   :root {
     --bg-primary: #ffffff;
-    --bg-secondary: #f1f5f9;
+    --bg-secondary: #f8fafc;
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --accent: #2563eb;
     --accent-rgb: 37, 99, 235;
     --accent-glow: rgba(37, 99, 235, 0.1);
     --border: #e2e8f0;
+    --border-dim: #f1f5f9;
   }
 
   body {
